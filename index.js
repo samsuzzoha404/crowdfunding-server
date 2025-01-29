@@ -27,17 +27,16 @@ let donationsCollection;
 
 async function connectToDatabase() {
   try {
-    // Connect to MongoDB
     await client.connect();
-    console.log("Connected to MongoDB!");
+    console.log("✅ Connected to MongoDB!");
 
     // Initialize collections
     const db = client.db("campaignsDB");
     campaignsCollection = db.collection("campaigns");
     donationsCollection = db.collection("donations");
   } catch (error) {
-    console.error("Error connecting to MongoDB:", error);
-    process.exit(1); // Exit if the database connection fails
+    console.error("❌ Error connecting to MongoDB:", error);
+    process.exit(1);
   }
 }
 
@@ -54,6 +53,7 @@ app.get("/campaigns", async (req, res) => {
     const result = await campaignsCollection.find().toArray();
     res.status(200).send(result);
   } catch (error) {
+    console.error("Error fetching campaigns:", error);
     res.status(500).send({ message: "Failed to fetch campaigns", error });
   }
 });
@@ -65,6 +65,7 @@ app.get("/myCampaign", async (req, res) => {
     const result = await campaignsCollection.find({ email }).toArray();
     res.status(200).send(result);
   } catch (error) {
+    console.error("Error fetching user campaigns:", error);
     res.status(500).send({ message: "Failed to fetch user campaigns", error });
   }
 });
@@ -77,27 +78,24 @@ app.get("/campaigns/:id", async (req, res) => {
     const result = await campaignsCollection.findOne(query);
     res.status(200).send(result);
   } catch (error) {
+    console.error("Error fetching campaign:", error);
     res.status(500).send({ message: "Failed to fetch campaign", error });
   }
 });
 
-// Get running campaigns (with future deadlines)
+// Get running campaigns
 app.get("/runningCampaigns", async (req, res) => {
   try {
     const today = new Date();
     const runningCampaigns = await campaignsCollection
-      .find({
-        $expr: {
-          $gte: [{ $toDate: "$deadline" }, today],
-        },
-      })
+      .find({ deadline: { $gte: today } }) 
       .limit(6)
       .toArray();
+
     res.status(200).send(runningCampaigns);
   } catch (error) {
-    res
-      .status(500)
-      .send({ message: "Failed to fetch running campaigns", error });
+    console.error("Error fetching running campaigns:", error);
+    res.status(500).send({ message: "Failed to fetch running campaigns", error });
   }
 });
 
@@ -110,11 +108,12 @@ app.get("/myDonations", async (req, res) => {
       .toArray();
     res.status(200).send(donations);
   } catch (error) {
+    console.error("Error fetching user donations:", error);
     res.status(500).send({ message: "Failed to fetch user donations", error });
   }
 });
 
-// Add a new campaign
+// Add a campaign
 app.post("/campaigns", async (req, res) => {
   try {
     const { deadline, ...rest } = req.body;
@@ -125,6 +124,7 @@ app.post("/campaigns", async (req, res) => {
     const result = await campaignsCollection.insertOne(newCampaign);
     res.status(201).send(result);
   } catch (error) {
+    console.error("Error adding campaign:", error);
     res.status(500).send({ message: "Failed to add campaign", error });
   }
 });
@@ -136,6 +136,7 @@ app.post("/donations", async (req, res) => {
     const result = await donationsCollection.insertOne(donation);
     res.status(201).send(result);
   } catch (error) {
+    console.error("Error adding donation:", error);
     res.status(500).send({ message: "Failed to add donation", error });
   }
 });
@@ -153,13 +154,10 @@ app.put("/campaigns/:id", async (req, res) => {
         deadline: new Date(updatedCampaign.deadline),
       },
     };
-    const result = await campaignsCollection.updateOne(
-      filter,
-      campaign,
-      options
-    );
+    const result = await campaignsCollection.updateOne(filter, campaign, options);
     res.status(200).send(result);
   } catch (error) {
+    console.error("Error updating campaign:", error);
     res.status(500).send({ message: "Failed to update campaign", error });
   }
 });
@@ -172,11 +170,12 @@ app.delete("/campaigns/:id", async (req, res) => {
     const result = await campaignsCollection.deleteOne(query);
     res.status(200).send(result);
   } catch (error) {
+    console.error("Error deleting campaign:", error);
     res.status(500).send({ message: "Failed to delete campaign", error });
   }
 });
 
 // Start the server
 app.listen(port, () => {
-  console.log(`Crowdcube server is running on port: ${port}`);
+  console.log(`🚀 Crowdcube server is running on port: ${port}`);
 });
