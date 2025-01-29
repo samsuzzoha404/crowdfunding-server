@@ -7,7 +7,13 @@ const app = express();
 const port = process.env.PORT || 5000;
 
 // Middleware
-app.use(cors());
+app.use(
+  cors({
+    origin: process.env.FRONTEND_URL || "https://crowd-funding-40464.web.app", 
+    methods: ["GET", "POST", "PUT", "DELETE"], 
+    credentials: true,
+  })
+);
 app.use(express.json());
 
 // MongoDB URI
@@ -51,10 +57,10 @@ app.get("/", (req, res) => {
 app.get("/campaigns", async (req, res) => {
   try {
     const result = await campaignsCollection.find().toArray();
-    res.status(200).send(result);
+    res.status(200).json(result);
   } catch (error) {
     console.error("Error fetching campaigns:", error);
-    res.status(500).send({ message: "Failed to fetch campaigns", error });
+    res.status(500).json({ message: "Failed to fetch campaigns", error });
   }
 });
 
@@ -62,11 +68,14 @@ app.get("/campaigns", async (req, res) => {
 app.get("/myCampaign", async (req, res) => {
   try {
     const email = req.query.email;
+    if (!email) {
+      return res.status(400).json({ message: "Email is required" });
+    }
     const result = await campaignsCollection.find({ email }).toArray();
-    res.status(200).send(result);
+    res.status(200).json(result);
   } catch (error) {
     console.error("Error fetching user campaigns:", error);
-    res.status(500).send({ message: "Failed to fetch user campaigns", error });
+    res.status(500).json({ message: "Failed to fetch user campaigns", error });
   }
 });
 
@@ -74,12 +83,18 @@ app.get("/myCampaign", async (req, res) => {
 app.get("/campaigns/:id", async (req, res) => {
   try {
     const id = req.params.id;
+    if (!ObjectId.isValid(id)) {
+      return res.status(400).json({ message: "Invalid campaign ID" });
+    }
     const query = { _id: new ObjectId(id) };
     const result = await campaignsCollection.findOne(query);
-    res.status(200).send(result);
+    if (!result) {
+      return res.status(404).json({ message: "Campaign not found" });
+    }
+    res.status(200).json(result);
   } catch (error) {
     console.error("Error fetching campaign:", error);
-    res.status(500).send({ message: "Failed to fetch campaign", error });
+    res.status(500).json({ message: "Failed to fetch campaign", error });
   }
 });
 
@@ -88,14 +103,14 @@ app.get("/runningCampaigns", async (req, res) => {
   try {
     const today = new Date();
     const runningCampaigns = await campaignsCollection
-      .find({ deadline: { $gte: today } }) 
+      .find({ deadline: { $gte: today } })
       .limit(6)
       .toArray();
 
-    res.status(200).send(runningCampaigns);
+    res.status(200).json(runningCampaigns);
   } catch (error) {
     console.error("Error fetching running campaigns:", error);
-    res.status(500).send({ message: "Failed to fetch running campaigns", error });
+    res.status(500).json({ message: "Failed to fetch running campaigns", error });
   }
 });
 
@@ -103,13 +118,16 @@ app.get("/runningCampaigns", async (req, res) => {
 app.get("/myDonations", async (req, res) => {
   try {
     const email = req.query.email;
+    if (!email) {
+      return res.status(400).json({ message: "Email is required" });
+    }
     const donations = await donationsCollection
       .find({ userEmail: email })
       .toArray();
-    res.status(200).send(donations);
+    res.status(200).json(donations);
   } catch (error) {
     console.error("Error fetching user donations:", error);
-    res.status(500).send({ message: "Failed to fetch user donations", error });
+    res.status(500).json({ message: "Failed to fetch user donations", error });
   }
 });
 
@@ -117,15 +135,18 @@ app.get("/myDonations", async (req, res) => {
 app.post("/campaigns", async (req, res) => {
   try {
     const { deadline, ...rest } = req.body;
+    if (!deadline || !rest.title || !rest.description || !rest.email) {
+      return res.status(400).json({ message: "Missing required fields" });
+    }
     const newCampaign = {
       ...rest,
       deadline: new Date(deadline),
     };
     const result = await campaignsCollection.insertOne(newCampaign);
-    res.status(201).send(result);
+    res.status(201).json(result);
   } catch (error) {
     console.error("Error adding campaign:", error);
-    res.status(500).send({ message: "Failed to add campaign", error });
+    res.status(500).json({ message: "Failed to add campaign", error });
   }
 });
 
@@ -133,11 +154,14 @@ app.post("/campaigns", async (req, res) => {
 app.post("/donations", async (req, res) => {
   try {
     const donation = req.body;
+    if (!donation.userEmail || !donation.campaignId || !donation.amount) {
+      return res.status(400).json({ message: "Missing required fields" });
+    }
     const result = await donationsCollection.insertOne(donation);
-    res.status(201).send(result);
+    res.status(201).json(result);
   } catch (error) {
     console.error("Error adding donation:", error);
-    res.status(500).send({ message: "Failed to add donation", error });
+    res.status(500).json({ message: "Failed to add donation", error });
   }
 });
 
@@ -145,6 +169,9 @@ app.post("/donations", async (req, res) => {
 app.put("/campaigns/:id", async (req, res) => {
   try {
     const id = req.params.id;
+    if (!ObjectId.isValid(id)) {
+      return res.status(400).json({ message: "Invalid campaign ID" });
+    }
     const filter = { _id: new ObjectId(id) };
     const options = { upsert: true };
     const updatedCampaign = req.body;
@@ -155,10 +182,10 @@ app.put("/campaigns/:id", async (req, res) => {
       },
     };
     const result = await campaignsCollection.updateOne(filter, campaign, options);
-    res.status(200).send(result);
+    res.status(200).json(result);
   } catch (error) {
     console.error("Error updating campaign:", error);
-    res.status(500).send({ message: "Failed to update campaign", error });
+    res.status(500).json({ message: "Failed to update campaign", error });
   }
 });
 
@@ -166,12 +193,18 @@ app.put("/campaigns/:id", async (req, res) => {
 app.delete("/campaigns/:id", async (req, res) => {
   try {
     const id = req.params.id;
+    if (!ObjectId.isValid(id)) {
+      return res.status(400).json({ message: "Invalid campaign ID" });
+    }
     const query = { _id: new ObjectId(id) };
     const result = await campaignsCollection.deleteOne(query);
-    res.status(200).send(result);
+    if (result.deletedCount === 0) {
+      return res.status(404).json({ message: "Campaign not found" });
+    }
+    res.status(200).json(result);
   } catch (error) {
     console.error("Error deleting campaign:", error);
-    res.status(500).send({ message: "Failed to delete campaign", error });
+    res.status(500).json({ message: "Failed to delete campaign", error });
   }
 });
 
